@@ -1,8 +1,6 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  // Prevent Next.js from bundling the native SQLite addon — must use Node.js require
-  serverExternalPackages: ['better-sqlite3'],
     async headers() {
         return [
             {

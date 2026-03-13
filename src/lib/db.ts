@@ -1,24 +1,28 @@
-import Database from 'better-sqlite3';
-import path from 'path';
+import { createClient, type Client } from '@libsql/client';
 
-const DB_PATH = process.env.DB_PATH ?? path.join(process.cwd(), 'shopping.db');
-
-let _db: Database.Database | undefined;
-
-export function getDb(): Database.Database {
-  if (!_db) {
-    _db = new Database(DB_PATH);
-    // WAL mode: concurrent reads while writes happen (two devices polling simultaneously)
-    _db.pragma('journal_mode = WAL');
-    _db.pragma('foreign_keys = ON');
-    initSchema(_db);
-    runMigrations(_db);
-  }
-  return _db;
+// In development: falls back to a local SQLite file (no Turso credentials needed)
+// In production (Vercel): TURSO_DATABASE_URL + TURSO_AUTH_TOKEN env vars required
+function createDbClient(): Client {
+  return createClient({
+    url: process.env.TURSO_DATABASE_URL ?? 'file:shopping.db',
+    authToken: process.env.TURSO_AUTH_TOKEN,
+  });
 }
 
-function initSchema(db: Database.Database) {
-  db.exec(`
+let _ready: Promise<Client> | undefined;
+
+export function getDb(): Promise<Client> {
+  if (!_ready) {
+    const client = createDbClient();
+    _ready = initSchema(client)
+      .then(() => runMigrations(client))
+      .then(() => client);
+  }
+  return _ready;
+}
+
+async function initSchema(db: Client) {
+  await db.executeMultiple(`
     CREATE TABLE IF NOT EXISTS lists (
       id         TEXT PRIMARY KEY,
       name       TEXT NOT NULL,
@@ -29,12 +33,12 @@ function initSchema(db: Database.Database) {
       id         TEXT PRIMARY KEY,
       list_id    TEXT NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
       name       TEXT NOT NULL,
+      quantity   TEXT,
       bought     INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
       bought_at  INTEGER
     );
 
-    -- Tracks all item names ever added — powers autocomplete
     CREATE TABLE IF NOT EXISTS item_history (
       name         TEXT PRIMARY KEY,
       use_count    INTEGER NOT NULL DEFAULT 1,
@@ -47,7 +51,6 @@ function initSchema(db: Database.Database) {
 }
 
 // Additive migrations — ALTER TABLE fails silently if column already exists
-function runMigrations(db: Database.Database) {
-  // v2: item quantity field
-  try { db.exec('ALTER TABLE items ADD COLUMN quantity TEXT'); } catch {}
+async function runMigrations(db: Client) {
+  try { await db.execute('ALTER TABLE items ADD COLUMN quantity TEXT'); } catch {}
 }
