@@ -1,14 +1,70 @@
 'use client';
 
+import { useState, useRef, useEffect } from 'react';
+import { parseItemInput } from '@/lib/parseItemInput';
 import type { ShoppingItem as ShoppingItemType } from '@/types/shopping';
 
 interface ShoppingItemProps {
   item: ShoppingItemType;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
+  onEdit: (id: string, name: string, quantity: string | null) => void;
 }
 
-export function ShoppingItem({ item, onToggle, onDelete }: ShoppingItemProps) {
+export function ShoppingItem({ item, onToggle, onDelete, onEdit }: ShoppingItemProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Build initial edit value from name + quantity
+  const displayValue = item.quantity ? `${item.name} x${item.quantity}` : item.name;
+
+  function startEdit() {
+    setEditValue(displayValue);
+    setIsEditing(true);
+  }
+
+  useEffect(() => {
+    if (isEditing) inputRef.current?.focus();
+  }, [isEditing]);
+
+  function commitEdit() {
+    const trimmed = editValue.trim();
+    if (trimmed && trimmed !== displayValue) {
+      const { name, quantity } = parseItemInput(trimmed);
+      onEdit(item.id, name, quantity);
+    }
+    setIsEditing(false);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') commitEdit();
+    if (e.key === 'Escape') setIsEditing(false);
+  }
+
+  if (isEditing) {
+    return (
+      <div className="flex min-h-12 w-full items-center gap-2 px-4 py-2">
+        <input
+          ref={inputRef}
+          type="text"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={commitEdit}
+          aria-label="Edit item"
+          className="flex-1 rounded-lg border border-zinc-400 bg-white px-3 py-2 text-base text-zinc-900 focus:border-indigo-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
+        />
+        <button
+          onMouseDown={(e) => { e.preventDefault(); commitEdit(); }}
+          className="rounded-md px-3 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950"
+        >
+          Save
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className={`group flex min-h-12 w-full items-center transition-opacity ${item.bought ? 'opacity-50' : ''}`}>
       <button
@@ -24,24 +80,13 @@ export function ShoppingItem({ item, onToggle, onDelete }: ShoppingItemProps) {
           }`}
         >
           {item.bought && (
-            <svg
-              className="h-3 w-3 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={3}
-              aria-hidden="true"
-            >
+            <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3} aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           )}
         </span>
         <span className="flex min-w-0 flex-1 items-baseline gap-2">
-          <span
-            className={`text-base ${
-              item.bought ? 'text-zinc-400 line-through dark:text-zinc-500' : 'text-zinc-900 dark:text-zinc-100'
-            }`}
-          >
+          <span className={`text-base ${item.bought ? 'text-zinc-400 line-through dark:text-zinc-500' : 'text-zinc-900 dark:text-zinc-100'}`}>
             {item.name}
           </span>
           {item.quantity && (
@@ -52,7 +97,18 @@ export function ShoppingItem({ item, onToggle, onDelete }: ShoppingItemProps) {
         </span>
       </button>
 
-      {/* Delete: always visible on mobile, hover-reveal on desktop */}
+      {/* Edit button */}
+      <button
+        onClick={startEdit}
+        aria-label={`Edit ${item.name}`}
+        className="rounded-md p-2 text-zinc-300 transition-opacity hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 sm:opacity-0 sm:group-hover:opacity-100"
+      >
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 2.828L11.828 15.828a2 2 0 01-1.414.586H7v-3a2 2 0 01.586-1.414z" />
+        </svg>
+      </button>
+
+      {/* Delete button */}
       <button
         onClick={() => onDelete(item.id)}
         aria-label={`Remove ${item.name}`}

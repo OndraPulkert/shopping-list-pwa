@@ -203,6 +203,36 @@ export function useListItems(listId: string) {
     }
   }
 
+  async function editItem(id: string, name: string, quantity: string | null) {
+    const prev = items.find((item) => item.id === id);
+    setItems((cur) => sortItems(cur.map((item) =>
+      item.id === id ? { ...item, name, quantity } : item
+    )));
+    pendingMutations.current++;
+    if (!isOnline) {
+      queue.current.enqueue(() =>
+        fetch(`/api/lists/${listId}/items/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, quantity }),
+        }).then(() => {})
+      );
+      pendingMutations.current--;
+      return;
+    }
+    try {
+      await fetch(`/api/lists/${listId}/items/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, quantity }),
+      });
+    } catch {
+      if (prev) setItems((cur) => sortItems(cur.map((item) => item.id === id ? prev : item)));
+    } finally {
+      pendingMutations.current--;
+    }
+  }
+
   async function resetList() {
     setItems((prev) => sortItems(prev.map((item) => ({ ...item, bought: false, boughtAt: null }))));
     if (!isOnline) {
@@ -221,7 +251,7 @@ export function useListItems(listId: string) {
 
   return {
     items, loading, notFound,
-    addItem, toggleItem, deleteItem,
+    addItem, toggleItem, deleteItem, editItem,
     clearBought, undoClearBought, canUndo: clearedItems.length > 0,
     resetList,
     isOnline,

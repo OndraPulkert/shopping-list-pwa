@@ -8,12 +8,13 @@ interface ShoppingListProps {
   items: ShoppingItemType[];
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
+  onEdit: (id: string, name: string, quantity: string | null) => void;
   onClearBought: () => void;
   onUndoClear: () => void;
   canUndo: boolean;
 }
 
-export function ShoppingList({ items, onToggle, onDelete, onClearBought, onUndoClear, canUndo }: ShoppingListProps) {
+export function ShoppingList({ items, onToggle, onDelete, onEdit, onClearBought, onUndoClear, canUndo }: ShoppingListProps) {
   if (items.length === 0 && !canUndo) return <EmptyState />;
 
   const activeItems = items.filter((item) => !item.bought);
@@ -25,7 +26,7 @@ export function ShoppingList({ items, onToggle, onDelete, onClearBought, onUndoC
         <ul>
           {activeItems.map((item) => (
             <li key={item.id} className="border-b border-zinc-100 dark:border-zinc-800">
-              <ShoppingItem item={item} onToggle={onToggle} onDelete={onDelete} />
+              <ShoppingItem item={item} onToggle={onToggle} onDelete={onDelete} onEdit={onEdit} />
             </li>
           ))}
         </ul>
@@ -47,7 +48,7 @@ export function ShoppingList({ items, onToggle, onDelete, onClearBought, onUndoC
             <ul>
               {boughtItems.map((item) => (
                 <li key={item.id} className="border-b border-zinc-100 dark:border-zinc-800">
-                  <ShoppingItem item={item} onToggle={onToggle} onDelete={onDelete} />
+                  <ShoppingItem item={item} onToggle={onToggle} onDelete={onDelete} onEdit={onEdit} />
                 </li>
               ))}
             </ul>
