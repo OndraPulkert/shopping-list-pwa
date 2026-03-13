@@ -81,23 +81,12 @@ export function ShoppingItem({ item, onToggle, onDelete, onEdit, sortable = fals
     <div
       ref={setNodeRef}
       style={dragStyle}
-      className={`group flex min-h-12 w-full items-center transition-opacity ${item.bought ? 'opacity-50' : ''}`}
+      className={`group flex min-h-12 w-full items-center transition-opacity ${item.bought ? 'opacity-50' : ''} ${sortable ? 'cursor-grab active:cursor-grabbing' : ''}`}
+      {...(sortable ? { ...attributes, ...listeners } : {})}
     >
-      {/* Drag handle — only for sortable active items */}
-      {sortable && (
-        <button
-          {...attributes}
-          {...listeners}
-          aria-label="Drag to reorder"
-          className="flex min-h-11 min-w-8 touch-none items-center justify-center pl-2 text-zinc-300 dark:text-zinc-600"
-        >
-          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-            <path d="M7 4a1 1 0 100-2 1 1 0 000 2zM13 4a1 1 0 100-2 1 1 0 000 2zM7 8a1 1 0 100-2 1 1 0 000 2zM13 8a1 1 0 100-2 1 1 0 000 2zM7 12a1 1 0 100-2 1 1 0 000 2zM13 12a1 1 0 100-2 1 1 0 000 2z"/>
-          </svg>
-        </button>
-      )}
       <button
         onClick={() => onToggle(item.id)}
+        onPointerDown={(e) => e.stopPropagation()}
         className="flex flex-1 items-center gap-3 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
         aria-pressed={item.bought}
       >
@@ -129,6 +118,7 @@ export function ShoppingItem({ item, onToggle, onDelete, onEdit, sortable = fals
       {/* Edit button — always visible on mobile, hover-reveal on desktop */}
       <button
         onClick={startEdit}
+        onPointerDown={(e) => e.stopPropagation()}
         aria-label={`Edit ${item.name}`}
         className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-zinc-500 transition-opacity hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 sm:opacity-0 sm:group-hover:opacity-100"
       >
@@ -140,6 +130,7 @@ export function ShoppingItem({ item, onToggle, onDelete, onEdit, sortable = fals
       {/* Delete button — always visible on mobile, hover-reveal on desktop */}
       <button
         onClick={() => onDelete(item.id)}
+        onPointerDown={(e) => e.stopPropagation()}
         aria-label={`Remove ${item.name}`}
         className="mr-1 flex min-h-11 min-w-11 items-center justify-center rounded-md text-zinc-400 transition-opacity hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 sm:opacity-0 sm:group-hover:opacity-100"
       >
