@@ -87,7 +87,7 @@ export function ShoppingItem({ item, onToggle, onDelete, onEdit, sortable = fals
           {...attributes}
           {...listeners}
           style={{ touchAction: 'none' }}
-          className="flex min-h-12 min-w-11 cursor-grab items-center justify-center text-zinc-300 active:cursor-grabbing dark:text-zinc-600"
+          className="flex min-h-12 w-8 cursor-grab items-center justify-center text-zinc-300 active:cursor-grabbing dark:text-zinc-600"
           aria-label="Drag to reorder"
         >
           <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
@@ -97,7 +97,7 @@ export function ShoppingItem({ item, onToggle, onDelete, onEdit, sortable = fals
       )}
       <button
         onClick={() => onToggle(item.id)}
-        className="flex flex-1 items-center gap-3 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
+        className={`flex flex-1 items-center gap-3 py-3 pr-4 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 ${sortable ? 'pl-0' : 'pl-4'}`}
         aria-pressed={item.bought}
       >
         <span
