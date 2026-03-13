@@ -16,16 +16,17 @@ function createDbClient(): Client {
   return createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN });
 }
 
-let _ready: Promise<Client> | undefined;
+// Attach to globalThis so Next.js hot reload in dev doesn't create multiple DB clients
+const g = globalThis as typeof globalThis & { _dbReady?: Promise<Client> };
 
 export function getDb(): Promise<Client> {
-  if (!_ready) {
+  if (!g._dbReady) {
     const client = createDbClient();
-    _ready = initSchema(client)
+    g._dbReady = initSchema(client)
       .then(() => runMigrations(client))
       .then(() => client);
   }
-  return _ready;
+  return g._dbReady;
 }
 
 async function initSchema(db: Client) {
@@ -59,8 +60,8 @@ async function initSchema(db: Client) {
   `);
 }
 
-// Additive migrations — ALTER TABLE fails silently if column already exists
+// Additive migrations — ALTER TABLE fails if column already exists; that's expected
 async function runMigrations(db: Client) {
-  try { await db.execute('ALTER TABLE items ADD COLUMN quantity TEXT'); } catch {}
-  try { await db.execute('ALTER TABLE items ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0'); } catch {}
+  try { await db.execute('ALTER TABLE items ADD COLUMN quantity TEXT'); } catch (e) { console.warn('migration skipped:', e); }
+  try { await db.execute('ALTER TABLE items ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0'); } catch (e) { console.warn('migration skipped:', e); }
 }

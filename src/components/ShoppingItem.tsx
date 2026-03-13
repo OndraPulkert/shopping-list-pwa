@@ -22,7 +22,6 @@ export function ShoppingItem({ item, onToggle, onDelete, onEdit, sortable = fals
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id, disabled: !sortable });
 
-  // Build initial edit value from name + quantity
   const displayValue = item.quantity ? `${item.name} x${item.quantity}` : item.name;
 
   function startEdit() {
@@ -114,7 +113,6 @@ export function ShoppingItem({ item, onToggle, onDelete, onEdit, sortable = fals
         </span>
       </button>
 
-      {/* Edit button — always visible on mobile, hover-reveal on desktop */}
       <button
         onClick={startEdit}
         aria-label={`Edit ${item.name}`}
@@ -125,7 +123,6 @@ export function ShoppingItem({ item, onToggle, onDelete, onEdit, sortable = fals
         </svg>
       </button>
 
-      {/* Delete button — always visible on mobile, hover-reveal on desktop */}
       <button
         onClick={() => onDelete(item.id)}
         aria-label={`Remove ${item.name}`}

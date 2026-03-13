@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ShoppingItem } from '@/types/shopping';
-import { MutationQueue } from '@/lib/mutation-queue';
-import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 
 // Only split active vs bought — preserve existing order within each group.
 // Server returns items already sorted by sort_order; this must not override it.
@@ -20,10 +18,8 @@ export function useListItems(listId: string) {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
-  // Pause polling while mutations are in-flight to prevent "blink-back" race condition
+  // Pause refetch while mutations are in-flight to prevent optimistic state being overwritten
   const pendingMutations = useRef(0);
-  const queue = useRef(new MutationQueue());
-  const isOnline = useOnlineStatus();
 
   const fetchItems = useCallback(async () => {
     if (pendingMutations.current > 0) return;
@@ -35,17 +31,17 @@ export function useListItems(listId: string) {
       setItems(sortItems(items));
       setLoading(false);
     } catch {
-      // Network offline — keep showing last known state
       setLoading(false);
     }
   }, [listId]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
-  // Poll every 3 seconds — keeps two devices in sync
+  // Refetch when the user returns to the tab/app
   useEffect(() => {
-    const interval = setInterval(fetchItems, 3000);
-    return () => clearInterval(interval);
+    const onFocus = () => fetchItems();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, [fetchItems]);
 
   // Auto-expire undo window after 5 seconds
@@ -54,16 +50,6 @@ export function useListItems(listId: string) {
     const timer = setTimeout(() => setClearedItems([]), 5000);
     return () => clearTimeout(timer);
   }, [clearedItems]);
-
-  // Drain queued mutations when connectivity is restored
-  useEffect(() => {
-    if (!isOnline || queue.current.size === 0) return;
-    pendingMutations.current++;
-    queue.current.drain().then(() => {
-      pendingMutations.current--;
-      fetchItems(); // re-sync after replay
-    });
-  }, [isOnline, fetchItems]);
 
   async function addItem(name: string, quantity?: string | null) {
     const trimmed = name.trim();
@@ -76,23 +62,13 @@ export function useListItems(listId: string) {
     };
     setItems((prev) => sortItems([...prev, optimistic]));
     pendingMutations.current++;
-    if (!isOnline) {
-      queue.current.enqueue(() =>
-        fetch(`/api/lists/${listId}/items`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: trimmed, quantity: quantity ?? null, id: optimisticId }),
-        }).then(() => {})
-      );
-      pendingMutations.current--;
-      return;
-    }
     try {
-      await fetch(`/api/lists/${listId}/items`, {
+      const res = await fetch(`/api/lists/${listId}/items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmed, quantity: quantity ?? null, id: optimisticId }),
       });
+      if (!res.ok) setItems((prev) => prev.filter((item) => item.id !== optimisticId));
     } catch {
       setItems((prev) => prev.filter((item) => item.id !== optimisticId));
     } finally {
@@ -110,15 +86,9 @@ export function useListItems(listId: string) {
       ))
     );
     pendingMutations.current++;
-    if (!isOnline) {
-      queue.current.enqueue(() =>
-        fetch(`/api/lists/${listId}/items/${id}`, { method: 'PATCH' }).then(() => {})
-      );
-      pendingMutations.current--;
-      return;
-    }
     try {
-      await fetch(`/api/lists/${listId}/items/${id}`, { method: 'PATCH' });
+      const res = await fetch(`/api/lists/${listId}/items/${id}`, { method: 'PATCH' });
+      if (!res.ok && prev) setItems((cur) => sortItems(cur.map((item) => item.id === id ? prev : item)));
     } catch {
       if (prev) setItems((cur) => sortItems(cur.map((item) => item.id === id ? prev : item)));
     } finally {
@@ -130,15 +100,9 @@ export function useListItems(listId: string) {
     const prev = items.find((item) => item.id === id);
     setItems((cur) => cur.filter((item) => item.id !== id));
     pendingMutations.current++;
-    if (!isOnline) {
-      queue.current.enqueue(() =>
-        fetch(`/api/lists/${listId}/items/${id}`, { method: 'DELETE' }).then(() => {})
-      );
-      pendingMutations.current--;
-      return;
-    }
     try {
-      await fetch(`/api/lists/${listId}/items/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/lists/${listId}/items/${id}`, { method: 'DELETE' });
+      if (!res.ok && prev) setItems((cur) => sortItems([...cur, prev]));
     } catch {
       if (prev) setItems((cur) => sortItems([...cur, prev]));
     } finally {
@@ -150,25 +114,14 @@ export function useListItems(listId: string) {
     const bought = items.filter((item) => item.bought);
     if (bought.length === 0) return;
     setItems((prev) => prev.filter((item) => !item.bought));
-    if (!isOnline) {
-      bought.forEach((item) =>
-        queue.current.enqueue(() =>
-          fetch(`/api/lists/${listId}/items/${item.id}`, { method: 'DELETE' }).then(() => {})
-        )
-      );
-      // Undo is available offline — drain will replay the DELETEs on reconnect
-      setClearedItems(bought);
-      return;
-    }
+    setClearedItems(bought); // offer undo immediately, regardless of network outcome
     pendingMutations.current++;
     try {
-      // Sequential DELETEs — avoids pendingMutations drift if Promise.all partially fails
       for (const item of bought) {
         await fetch(`/api/lists/${listId}/items/${item.id}`, { method: 'DELETE' });
       }
-      setClearedItems(bought);
     } catch {
-      // Partial failure — re-fetch on next poll to reconcile
+      // Partial failure — undo is available, focus refetch will reconcile
     } finally {
       pendingMutations.current--;
     }
@@ -177,20 +130,9 @@ export function useListItems(listId: string) {
   async function undoClearBought() {
     if (clearedItems.length === 0) return;
     const restored = clearedItems.map((item) => ({ ...item, bought: false, boughtAt: null }));
+    const snapshot = clearedItems;
     setItems((prev) => sortItems([...prev, ...restored]));
     setClearedItems([]);
-    if (!isOnline) {
-      restored.forEach((item) =>
-        queue.current.enqueue(() =>
-          fetch(`/api/lists/${listId}/items`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: item.name, quantity: item.quantity, id: item.id }),
-          }).then(() => {})
-        )
-      );
-      return;
-    }
     pendingMutations.current += restored.length;
     try {
       await Promise.all(
@@ -202,29 +144,12 @@ export function useListItems(listId: string) {
           })
         )
       );
+    } catch {
+      // Rollback: remove optimistically added items and restore undo button
+      setItems((prev) => prev.filter((item) => !restored.find((r) => r.id === item.id)));
+      setClearedItems(snapshot);
     } finally {
       pendingMutations.current -= restored.length;
-    }
-  }
-
-  async function reorderItems(activeIds: string[]) {
-    // Optimistic: reorder active items, keep bought items at the end
-    setItems((prev) => {
-      const bought = prev.filter((i) => i.bought);
-      const reordered = activeIds
-        .map((id) => prev.find((i) => i.id === id))
-        .filter(Boolean) as ShoppingItem[];
-      return [...reordered, ...bought];
-    });
-    pendingMutations.current++;
-    try {
-      await fetch(`/api/lists/${listId}/items/reorder`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: activeIds }),
-      });
-    } finally {
-      pendingMutations.current--;
     }
   }
 
@@ -234,23 +159,13 @@ export function useListItems(listId: string) {
       item.id === id ? { ...item, name, quantity } : item
     )));
     pendingMutations.current++;
-    if (!isOnline) {
-      queue.current.enqueue(() =>
-        fetch(`/api/lists/${listId}/items/${id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, quantity }),
-        }).then(() => {})
-      );
-      pendingMutations.current--;
-      return;
-    }
     try {
-      await fetch(`/api/lists/${listId}/items/${id}`, {
-        method: 'PATCH',
+      const res = await fetch(`/api/lists/${listId}/items/${id}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, quantity }),
       });
+      if (!res.ok && prev) setItems((cur) => sortItems(cur.map((item) => item.id === id ? prev : item)));
     } catch {
       if (prev) setItems((cur) => sortItems(cur.map((item) => item.id === id ? prev : item)));
     } finally {
@@ -258,14 +173,38 @@ export function useListItems(listId: string) {
     }
   }
 
+  async function reorderItems(activeIds: string[]) {
+    // Guard: all ids must exist in current active items
+    const active = items.filter((i) => !i.bought);
+    if (activeIds.some((id) => !active.find((i) => i.id === id))) return;
+
+    // Capture snapshot inside setItems to get the latest state, not stale closure value
+    let snapshot: ShoppingItem[] = [];
+    setItems((prev) => {
+      snapshot = prev;
+      const bought = prev.filter((i) => i.bought);
+      const reordered = activeIds
+        .map((id) => prev.find((i) => i.id === id))
+        .filter(Boolean) as ShoppingItem[];
+      return [...reordered, ...bought];
+    });
+    pendingMutations.current++;
+    try {
+      const res = await fetch(`/api/lists/${listId}/items/reorder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: activeIds }),
+      });
+      if (!res.ok) setItems(snapshot);
+    } catch {
+      setItems(snapshot);
+    } finally {
+      pendingMutations.current--;
+    }
+  }
+
   async function resetList() {
     setItems((prev) => sortItems(prev.map((item) => ({ ...item, bought: false, boughtAt: null }))));
-    if (!isOnline) {
-      queue.current.enqueue(() =>
-        fetch(`/api/lists/${listId}/reset`, { method: 'POST' }).then(() => {})
-      );
-      return;
-    }
     pendingMutations.current++;
     try {
       await fetch(`/api/lists/${listId}/reset`, { method: 'POST' });
@@ -279,6 +218,5 @@ export function useListItems(listId: string) {
     addItem, toggleItem, deleteItem, editItem, reorderItems,
     clearBought, undoClearBought, canUndo: clearedItems.length > 0,
     resetList,
-    isOnline,
   };
 }

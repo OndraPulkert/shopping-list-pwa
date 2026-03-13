@@ -16,6 +16,8 @@ function rowToItem(r: Record<string, unknown>) {
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const db = await getDb();
+  const list = await db.execute({ sql: 'SELECT id FROM lists WHERE id = ?', args: [id] });
+  if (!list.rows[0]) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const result = await db.execute({
     sql: 'SELECT * FROM items WHERE list_id = ? ORDER BY bought ASC, sort_order ASC, created_at ASC',
     args: [id],
