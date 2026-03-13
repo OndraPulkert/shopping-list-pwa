@@ -35,10 +35,11 @@ export function ShoppingList({
   const activeItems = items.filter((i) => !i.bought);
   const boughtItems = items.filter((i) => i.bought);
 
-  // PointerSensor for mouse/stylus, TouchSensor for finger with 8px tolerance
+  // Desktop: drag starts after 8px movement
+  // Mobile touch: drag starts after holding 250ms (distinguishes tap from drag)
   const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(TouchSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
   );
 
   function handleDragEnd(event: DragEndEvent) {
