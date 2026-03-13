@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# database
+shopping.db
+shopping.db-shm
+shopping.db-wal
+
+# Claude Code local settings (personal, not project-wide)
+.claude/settings.local.json

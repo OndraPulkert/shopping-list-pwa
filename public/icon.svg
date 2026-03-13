@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4338ca"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+  <!-- Full-bleed background — OS applies its own mask shape (circle, squircle…) -->
+  <rect width="192" height="192" fill="url(#g)"/>
+  <!-- Shopping bag body -->
+  <rect x="38" y="82" width="116" height="80" rx="10" fill="none" stroke="white" stroke-width="11"/>
+  <!-- Handle -->
+  <path d="M64 82 Q64 48 96 48 Q128 48 128 82" fill="none" stroke="white" stroke-width="11" stroke-linecap="round"/>
+  <!-- Checkmark inside bag -->
+  <path d="M68 120 l20 18 36-34" stroke="white" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>
