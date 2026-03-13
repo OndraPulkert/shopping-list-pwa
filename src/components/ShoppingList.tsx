@@ -35,10 +35,9 @@ export function ShoppingList({
   const activeItems = items.filter((i) => !i.bought);
   const boughtItems = items.filter((i) => i.bought);
 
-  // Desktop: drag starts after 8px movement
-  // Mobile touch: drag starts after holding 250ms (distinguishes tap from drag)
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    // delay+tolerance on touch: lets quick swipes scroll, long-press activates drag
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
   );
 

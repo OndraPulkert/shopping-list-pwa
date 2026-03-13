@@ -79,10 +79,22 @@ export function ShoppingItem({ item, onToggle, onDelete, onEdit, sortable = fals
   return (
     <div
       ref={setNodeRef}
-      style={dragStyle}
-      className={`group flex min-h-12 w-full items-center transition-opacity ${item.bought ? 'opacity-50' : ''} ${sortable ? 'cursor-grab active:cursor-grabbing' : ''}`}
-      {...(sortable ? { ...attributes, ...listeners } : {})}
+      style={{ ...dragStyle, touchAction: isDragging ? 'none' : undefined }}
+      className={`group flex min-h-12 w-full items-center ${item.bought ? 'opacity-50' : ''}`}
     >
+      {sortable && (
+        <div
+          {...attributes}
+          {...listeners}
+          style={{ touchAction: 'none' }}
+          className="flex min-h-12 min-w-11 cursor-grab items-center justify-center text-zinc-300 active:cursor-grabbing dark:text-zinc-600"
+          aria-label="Drag to reorder"
+        >
+          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M7 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 6a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 6a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm6-12a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 6a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 6a1 1 0 1 1-2 0 1 1 0 0 1 2 0z" />
+          </svg>
+        </div>
+      )}
       <button
         onClick={() => onToggle(item.id)}
         className="flex flex-1 items-center gap-3 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
