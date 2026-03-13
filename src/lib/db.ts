@@ -60,4 +60,5 @@ async function initSchema(db: Client) {
 // Additive migrations — ALTER TABLE fails silently if column already exists
 async function runMigrations(db: Client) {
   try { await db.execute('ALTER TABLE items ADD COLUMN quantity TEXT'); } catch {}
+  try { await db.execute('ALTER TABLE items ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0'); } catch {}
 }

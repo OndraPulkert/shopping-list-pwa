@@ -17,7 +17,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const db = await getDb();
   const result = await db.execute({
-    sql: 'SELECT * FROM items WHERE list_id = ? ORDER BY bought ASC, created_at ASC',
+    sql: 'SELECT * FROM items WHERE list_id = ? ORDER BY bought ASC, sort_order ASC, created_at ASC',
     args: [id],
   });
   return NextResponse.json({ items: result.rows.map(rowToItem) });
@@ -42,9 +42,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const id = clientId ?? crypto.randomUUID();
   const now = Date.now();
 
+  // Place new items at the end of active list
+  const maxOrder = await db.execute({
+    sql: 'SELECT COALESCE(MAX(sort_order), 0) AS m FROM items WHERE list_id = ?',
+    args: [listId],
+  });
+  const sortOrder = (maxOrder.rows[0].m as number) + 1;
+
   await db.execute({
-    sql: 'INSERT OR IGNORE INTO items (id, list_id, name, quantity, bought, created_at) VALUES (?, ?, ?, ?, 0, ?)',
-    args: [id, listId, trimmed, quantity ?? null, now],
+    sql: 'INSERT OR IGNORE INTO items (id, list_id, name, quantity, bought, created_at, sort_order) VALUES (?, ?, ?, ?, 0, ?, ?)',
+    args: [id, listId, trimmed, quantity ?? null, now, sortOrder],
   });
 
   // Track in history for autocomplete

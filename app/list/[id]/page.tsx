@@ -14,7 +14,7 @@ export default function ListPage({ params }: { params: Promise<{ id: string }> }
   const { name, notFound: listNotFound, rename } = useList(id);
   const {
     items, loading, notFound: itemsNotFound,
-    addItem, toggleItem, deleteItem, editItem,
+    addItem, toggleItem, deleteItem, editItem, reorderItems,
     clearBought, undoClearBought, canUndo,
     resetList, isOnline,
   } = useListItems(id);
@@ -135,6 +135,7 @@ export default function ListPage({ params }: { params: Promise<{ id: string }> }
               onToggle={toggleItem}
               onDelete={deleteItem}
               onEdit={editItem}
+              onReorder={reorderItems}
               onClearBought={clearBought}
               onUndoClear={undoClearBought}
               canUndo={canUndo}

@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { parseItemInput } from '@/lib/parseItemInput';
 import type { ShoppingItem as ShoppingItemType } from '@/types/shopping';
 
@@ -9,12 +11,16 @@ interface ShoppingItemProps {
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
   onEdit: (id: string, name: string, quantity: string | null) => void;
+  sortable?: boolean;
 }
 
-export function ShoppingItem({ item, onToggle, onDelete, onEdit }: ShoppingItemProps) {
+export function ShoppingItem({ item, onToggle, onDelete, onEdit, sortable = false }: ShoppingItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item.id, disabled: !sortable });
 
   // Build initial edit value from name + quantity
   const displayValue = item.quantity ? `${item.name} x${item.quantity}` : item.name;
@@ -42,6 +48,12 @@ export function ShoppingItem({ item, onToggle, onDelete, onEdit }: ShoppingItemP
     if (e.key === 'Escape') setIsEditing(false);
   }
 
+  const dragStyle = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
   if (isEditing) {
     return (
       <div className="flex min-h-12 w-full items-center gap-2 px-4 py-2">
@@ -66,7 +78,24 @@ export function ShoppingItem({ item, onToggle, onDelete, onEdit }: ShoppingItemP
   }
 
   return (
-    <div className={`group flex min-h-12 w-full items-center transition-opacity ${item.bought ? 'opacity-50' : ''}`}>
+    <div
+      ref={setNodeRef}
+      style={dragStyle}
+      className={`group flex min-h-12 w-full items-center transition-opacity ${item.bought ? 'opacity-50' : ''}`}
+    >
+      {/* Drag handle — only for sortable active items */}
+      {sortable && (
+        <button
+          {...attributes}
+          {...listeners}
+          aria-label="Drag to reorder"
+          className="flex min-h-11 min-w-8 touch-none items-center justify-center pl-2 text-zinc-300 dark:text-zinc-600"
+        >
+          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M7 4a1 1 0 100-2 1 1 0 000 2zM13 4a1 1 0 100-2 1 1 0 000 2zM7 8a1 1 0 100-2 1 1 0 000 2zM13 8a1 1 0 100-2 1 1 0 000 2zM7 12a1 1 0 100-2 1 1 0 000 2zM13 12a1 1 0 100-2 1 1 0 000 2z"/>
+          </svg>
+        </button>
+      )}
       <button
         onClick={() => onToggle(item.id)}
         className="flex flex-1 items-center gap-3 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"

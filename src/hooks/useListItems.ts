@@ -203,6 +203,27 @@ export function useListItems(listId: string) {
     }
   }
 
+  async function reorderItems(activeIds: string[]) {
+    // Optimistic: reorder active items, keep bought items at the end
+    setItems((prev) => {
+      const bought = prev.filter((i) => i.bought);
+      const reordered = activeIds
+        .map((id) => prev.find((i) => i.id === id))
+        .filter(Boolean) as ShoppingItem[];
+      return [...reordered, ...bought];
+    });
+    pendingMutations.current++;
+    try {
+      await fetch(`/api/lists/${listId}/items/reorder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: activeIds }),
+      });
+    } finally {
+      pendingMutations.current--;
+    }
+  }
+
   async function editItem(id: string, name: string, quantity: string | null) {
     const prev = items.find((item) => item.id === id);
     setItems((cur) => sortItems(cur.map((item) =>
@@ -251,7 +272,7 @@ export function useListItems(listId: string) {
 
   return {
     items, loading, notFound,
-    addItem, toggleItem, deleteItem, editItem,
+    addItem, toggleItem, deleteItem, editItem, reorderItems,
     clearBought, undoClearBought, canUndo: clearedItems.length > 0,
     resetList,
     isOnline,
