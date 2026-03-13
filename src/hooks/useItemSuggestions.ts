@@ -12,18 +12,25 @@ export function useItemSuggestions(query: string) {
     const q = query.trim();
     if (!q) { setSuggestions([]); return; }
 
+    const controller = new AbortController();
+
     timerRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/suggestions?q=${encodeURIComponent(q)}`);
+        const res = await fetch(`/api/suggestions?q=${encodeURIComponent(q)}`, {
+          signal: controller.signal,
+        });
         if (!res.ok) return;
         const data = await res.json() as { suggestions: string[] };
         setSuggestions(data.suggestions);
       } catch {
-        // ignore network errors
+        // AbortError or network error — ignore
       }
     }, 150);
 
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      controller.abort();
+    };
   }, [query]);
 
   return suggestions;

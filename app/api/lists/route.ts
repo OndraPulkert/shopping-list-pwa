@@ -30,7 +30,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const { name } = await request.json() as { name: string };
   const trimmed = name?.trim();
-  if (!trimmed) return NextResponse.json({ error: 'Name required' }, { status: 400 });
+  if (!trimmed || trimmed.length > 200) return NextResponse.json({ error: 'Invalid name' }, { status: 400 });
 
   const db = await getDb();
   const id = crypto.randomUUID();

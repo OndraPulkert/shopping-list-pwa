@@ -30,7 +30,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   };
   const trimmed = name?.trim();
   if (!trimmed || trimmed.length > 500) return NextResponse.json({ error: 'Invalid name' }, { status: 400 });
-  if (quantity && (typeof quantity !== 'string' || quantity.length > 50)) {
+  const qty = (typeof quantity === 'string' ? quantity.trim() : null) || null;
+  if (qty && qty.length > 50) {
     return NextResponse.json({ error: 'Invalid quantity' }, { status: 400 });
   }
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -50,8 +51,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const sortOrder = (maxOrder.rows[0].m as number) + 1;
 
   await db.execute({
-    sql: 'INSERT OR IGNORE INTO items (id, list_id, name, quantity, bought, created_at, sort_order) VALUES (?, ?, ?, ?, 0, ?, ?)',
-    args: [id, listId, trimmed, quantity ?? null, now, sortOrder],
+    sql: `INSERT INTO items (id, list_id, name, quantity, bought, created_at, sort_order) VALUES (?, ?, ?, ?, 0, ?, ?)
+          ON CONFLICT(id) DO NOTHING`,
+    args: [id, listId, trimmed, qty, now, sortOrder],
   });
 
   // Track in history for autocomplete

@@ -47,6 +47,7 @@ export function ShoppingList({
     if (!over || active.id === over.id) return;
     const oldIndex = activeItems.findIndex((i) => i.id === active.id);
     const newIndex = activeItems.findIndex((i) => i.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
     const reordered = arrayMove(activeItems, oldIndex, newIndex);
     onReorder(reordered.map((i) => i.id));
   }

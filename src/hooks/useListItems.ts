@@ -160,15 +160,17 @@ export function useListItems(listId: string) {
       setClearedItems(bought);
       return;
     }
-    pendingMutations.current += bought.length;
+    pendingMutations.current++;
     try {
-      // Wait for all DELETEs before enabling undo — prevents INSERT OR IGNORE no-op race
-      await Promise.all(
-        bought.map((item) => fetch(`/api/lists/${listId}/items/${item.id}`, { method: 'DELETE' }))
-      );
+      // Sequential DELETEs — avoids pendingMutations drift if Promise.all partially fails
+      for (const item of bought) {
+        await fetch(`/api/lists/${listId}/items/${item.id}`, { method: 'DELETE' });
+      }
       setClearedItems(bought);
+    } catch {
+      // Partial failure — re-fetch on next poll to reconcile
     } finally {
-      pendingMutations.current -= bought.length;
+      pendingMutations.current--;
     }
   }
 

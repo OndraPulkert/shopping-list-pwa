@@ -29,6 +29,8 @@ export function getDb(): Promise<Client> {
 }
 
 async function initSchema(db: Client) {
+  // Enable foreign key enforcement (SQLite requires this per-connection)
+  await db.execute('PRAGMA foreign_keys = ON');
   await db.executeMultiple(`
     CREATE TABLE IF NOT EXISTS lists (
       id         TEXT PRIMARY KEY,
