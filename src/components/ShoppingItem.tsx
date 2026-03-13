@@ -97,22 +97,22 @@ export function ShoppingItem({ item, onToggle, onDelete, onEdit }: ShoppingItemP
         </span>
       </button>
 
-      {/* Edit button */}
+      {/* Edit button — always visible on mobile, hover-reveal on desktop */}
       <button
         onClick={startEdit}
         aria-label={`Edit ${item.name}`}
-        className="rounded-md p-2 text-zinc-300 transition-opacity hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 sm:opacity-0 sm:group-hover:opacity-100"
+        className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-zinc-400 transition-opacity hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 sm:opacity-0 sm:group-hover:opacity-100"
       >
         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 2.828L11.828 15.828a2 2 0 01-1.414.586H7v-3a2 2 0 01.586-1.414z" />
         </svg>
       </button>
 
-      {/* Delete button */}
+      {/* Delete button — always visible on mobile, hover-reveal on desktop */}
       <button
         onClick={() => onDelete(item.id)}
         aria-label={`Remove ${item.name}`}
-        className="mr-2 rounded-md p-2 text-zinc-300 transition-opacity hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 sm:opacity-0 sm:group-hover:opacity-100"
+        className="mr-1 flex min-h-11 min-w-11 items-center justify-center rounded-md text-zinc-400 transition-opacity hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 sm:opacity-0 sm:group-hover:opacity-100"
       >
         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
