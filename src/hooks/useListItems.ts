@@ -5,10 +5,12 @@ import type { ShoppingItem } from '@/types/shopping';
 import { MutationQueue } from '@/lib/mutation-queue';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 
+// Only split active vs bought — preserve existing order within each group.
+// Server returns items already sorted by sort_order; this must not override it.
 function sortItems(items: ShoppingItem[]): ShoppingItem[] {
   return [...items].sort((a, b) => {
     if (a.bought !== b.bought) return a.bought ? 1 : -1;
-    return a.createdAt - b.createdAt;
+    return 0;
   });
 }
 
