@@ -3,10 +3,17 @@ import { createClient, type Client } from '@libsql/client';
 // In development: falls back to a local SQLite file (no Turso credentials needed)
 // In production (Vercel): TURSO_DATABASE_URL + TURSO_AUTH_TOKEN env vars required
 function createDbClient(): Client {
-  return createClient({
-    url: process.env.TURSO_DATABASE_URL ?? 'file:shopping.db',
-    authToken: process.env.TURSO_AUTH_TOKEN,
-  });
+  const url = process.env.TURSO_DATABASE_URL;
+  if (!url) {
+    // Local dev: use a local SQLite file
+    if (process.env.NODE_ENV !== 'production') {
+      return createClient({ url: 'file:shopping.db' });
+    }
+    throw new Error(
+      'TURSO_DATABASE_URL is not set. Add it in Vercel → Project Settings → Environment Variables.'
+    );
+  }
+  return createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN });
 }
 
 let _ready: Promise<Client> | undefined;
