@@ -3,10 +3,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLists } from '@/hooks/useLists';
+import { ErrorBanner } from '@/components/ErrorBanner';
 import type { ShoppingList } from '@/types/shopping';
 
 export default function Home() {
-  const { lists, loading, createList, deleteList } = useLists();
+  const { lists, loading, error, clearError, createList, deleteList } = useLists();
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
   const router = useRouter();
@@ -29,6 +30,8 @@ export default function Home() {
       </header>
 
       <div className="mx-auto max-w-lg p-4">
+        {error && <ErrorBanner message={error} onDismiss={clearError} />}
+
         {/* New list */}
         <div className="mb-6 flex gap-2">
           <input
@@ -39,12 +42,12 @@ export default function Home() {
             placeholder="New list name..."
             autoFocus
             aria-label="New list name"
-            className="flex-1 rounded-lg border border-zinc-300 bg-white px-4 py-3 text-base text-zinc-900 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
+            className="flex-1 rounded-lg border border-zinc-400 bg-white px-4 py-3 text-base text-zinc-900 placeholder-zinc-400 focus:border-indigo-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
           />
           <button
             onClick={handleCreate}
             disabled={!newName.trim() || creating}
-            className="rounded-lg bg-zinc-900 px-5 py-3 text-base font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            className="rounded-lg bg-indigo-600 px-5 py-3 text-base font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-40 dark:bg-indigo-500 dark:hover:bg-indigo-400"
           >
             Create
           </button>

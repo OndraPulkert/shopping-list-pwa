@@ -17,6 +17,7 @@ export function useListItems(listId: string) {
   const [clearedItems, setClearedItems] = useState<ShoppingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Pause refetch while mutations are in-flight to prevent optimistic state being overwritten
   const pendingMutations = useRef(0);
@@ -26,11 +27,16 @@ export function useListItems(listId: string) {
     try {
       const res = await fetch(`/api/lists/${listId}/items`);
       if (res.status === 404) { setNotFound(true); setLoading(false); return; }
-      if (!res.ok) return;
+      if (!res.ok) {
+        setError('Could not load items.');
+        return;
+      }
       const { items } = await res.json() as { items: ShoppingItem[] };
       setItems(sortItems(items));
+      setError(null);
       setLoading(false);
     } catch {
+      setError('Could not load items.');
       setLoading(false);
     }
   }, [listId]);
@@ -68,9 +74,15 @@ export function useListItems(listId: string) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmed, quantity: quantity ?? null, id: optimisticId }),
       });
-      if (!res.ok) setItems((prev) => prev.filter((item) => item.id !== optimisticId));
+      if (!res.ok) {
+        setItems((prev) => prev.filter((item) => item.id !== optimisticId));
+        setError('Could not add the item.');
+        return;
+      }
+      setError(null);
     } catch {
       setItems((prev) => prev.filter((item) => item.id !== optimisticId));
+      setError('Could not add the item.');
     } finally {
       pendingMutations.current--;
     }
@@ -88,9 +100,15 @@ export function useListItems(listId: string) {
     pendingMutations.current++;
     try {
       const res = await fetch(`/api/lists/${listId}/items/${id}`, { method: 'PATCH' });
-      if (!res.ok && prev) setItems((cur) => sortItems(cur.map((item) => item.id === id ? prev : item)));
+      if (!res.ok) {
+        if (prev) setItems((cur) => sortItems(cur.map((item) => item.id === id ? prev : item)));
+        setError('Could not update the item.');
+        return;
+      }
+      setError(null);
     } catch {
       if (prev) setItems((cur) => sortItems(cur.map((item) => item.id === id ? prev : item)));
+      setError('Could not update the item.');
     } finally {
       pendingMutations.current--;
     }
@@ -102,9 +120,15 @@ export function useListItems(listId: string) {
     pendingMutations.current++;
     try {
       const res = await fetch(`/api/lists/${listId}/items/${id}`, { method: 'DELETE' });
-      if (!res.ok && prev) setItems((cur) => sortItems([...cur, prev]));
+      if (!res.ok) {
+        if (prev) setItems((cur) => sortItems([...cur, prev]));
+        setError('Could not delete the item.');
+        return;
+      }
+      setError(null);
     } catch {
       if (prev) setItems((cur) => sortItems([...cur, prev]));
+      setError('Could not delete the item.');
     } finally {
       pendingMutations.current--;
     }
@@ -118,10 +142,19 @@ export function useListItems(listId: string) {
     pendingMutations.current++;
     try {
       for (const item of bought) {
-        await fetch(`/api/lists/${listId}/items/${item.id}`, { method: 'DELETE' });
+        const res = await fetch(`/api/lists/${listId}/items/${item.id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          setClearedItems([]);
+          setError('Could not clear bought items.');
+          await fetchItems();
+          return;
+        }
       }
+      setError(null);
     } catch {
-      // Partial failure — undo is available, focus refetch will reconcile
+      setClearedItems([]);
+      setError('Could not clear bought items.');
+      await fetchItems();
     } finally {
       pendingMutations.current--;
     }
@@ -135,7 +168,7 @@ export function useListItems(listId: string) {
     setClearedItems([]);
     pendingMutations.current += restored.length;
     try {
-      await Promise.all(
+      const responses = await Promise.all(
         restored.map((item) =>
           fetch(`/api/lists/${listId}/items`, {
             method: 'POST',
@@ -144,10 +177,15 @@ export function useListItems(listId: string) {
           })
         )
       );
+      if (responses.some((res) => !res.ok)) {
+        throw new Error('restore failed');
+      }
+      setError(null);
     } catch {
-      // Rollback: remove optimistically added items and restore undo button
-      setItems((prev) => prev.filter((item) => !restored.find((r) => r.id === item.id)));
+      // Re-sync after partial failure because some items may already exist on the server.
       setClearedItems(snapshot);
+      setError('Could not restore cleared items.');
+      await fetchItems();
     } finally {
       pendingMutations.current -= restored.length;
     }
@@ -165,9 +203,15 @@ export function useListItems(listId: string) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, quantity }),
       });
-      if (!res.ok && prev) setItems((cur) => sortItems(cur.map((item) => item.id === id ? prev : item)));
+      if (!res.ok) {
+        if (prev) setItems((cur) => sortItems(cur.map((item) => item.id === id ? prev : item)));
+        setError('Could not save item changes.');
+        return;
+      }
+      setError(null);
     } catch {
       if (prev) setItems((cur) => sortItems(cur.map((item) => item.id === id ? prev : item)));
+      setError('Could not save item changes.');
     } finally {
       pendingMutations.current--;
     }
@@ -195,26 +239,42 @@ export function useListItems(listId: string) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: activeIds }),
       });
-      if (!res.ok) setItems(snapshot);
+      if (!res.ok) {
+        setItems(snapshot);
+        setError('Could not reorder items.');
+        return;
+      }
+      setError(null);
     } catch {
       setItems(snapshot);
+      setError('Could not reorder items.');
     } finally {
       pendingMutations.current--;
     }
   }
 
   async function resetList() {
+    const previousItems = items;
     setItems((prev) => sortItems(prev.map((item) => ({ ...item, bought: false, boughtAt: null }))));
     pendingMutations.current++;
     try {
-      await fetch(`/api/lists/${listId}/reset`, { method: 'POST' });
+      const res = await fetch(`/api/lists/${listId}/reset`, { method: 'POST' });
+      if (!res.ok) {
+        setItems(previousItems);
+        setError('Could not reset the list.');
+        return;
+      }
+      setError(null);
+    } catch {
+      setItems(previousItems);
+      setError('Could not reset the list.');
     } finally {
       pendingMutations.current--;
     }
   }
 
   return {
-    items, loading, notFound,
+    items, loading, notFound, error, clearError: () => setError(null),
     addItem, toggleItem, deleteItem, editItem, reorderItems,
     clearBought, undoClearBought, canUndo: clearedItems.length > 0,
     resetList,

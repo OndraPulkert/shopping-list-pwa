@@ -5,16 +5,25 @@ import { useState, useEffect } from 'react';
 export function useList(id: string) {
   const [name, setName] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/lists/${id}`)
       .then((res) => {
         if (res.status === 404) { setNotFound(true); return null; }
-        if (!res.ok) return null;
+        if (!res.ok) {
+          setError('Could not load the list.');
+          return null;
+        }
         return res.json() as Promise<{ list: { name: string } }>;
       })
-      .then((data) => { if (data) setName(data.list.name); })
-      .catch(() => {});
+      .then((data) => {
+        if (data) {
+          setName(data.list.name);
+          setError(null);
+        }
+      })
+      .catch(() => { setError('Could not load the list.'); });
   }, [id]);
 
   async function rename(newName: string) {
@@ -23,15 +32,22 @@ export function useList(id: string) {
     const prev = name;
     setName(trimmed); // optimistic
     try {
-      await fetch(`/api/lists/${id}`, {
+      const res = await fetch(`/api/lists/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmed }),
       });
+      if (!res.ok) {
+        setName(prev);
+        setError('Could not rename the list.');
+        return;
+      }
+      setError(null);
     } catch {
       setName(prev); // rollback to captured pre-update value
+      setError('Could not rename the list.');
     }
   }
 
-  return { name, notFound, rename };
+  return { name, notFound, error, clearError: () => setError(null), rename };
 }

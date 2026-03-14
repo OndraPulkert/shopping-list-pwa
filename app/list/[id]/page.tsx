@@ -6,14 +6,15 @@ import { useRouter } from 'next/navigation';
 import { useList } from '@/hooks/useList';
 import { useListItems } from '@/hooks/useListItems';
 import { AddItemForm } from '@/components/AddItemForm';
+import { ErrorBanner } from '@/components/ErrorBanner';
 import { ShoppingList } from '@/components/ShoppingList';
 
 export default function ListPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const { name, notFound: listNotFound, rename } = useList(id);
+  const { name, notFound: listNotFound, error: listError, clearError: clearListError, rename } = useList(id);
   const {
-    items, loading, notFound: itemsNotFound,
+    items, loading, notFound: itemsNotFound, error: itemsError, clearError: clearItemsError,
     addItem, toggleItem, deleteItem, editItem, reorderItems,
     clearBought, undoClearBought, canUndo,
     resetList,
@@ -23,6 +24,7 @@ export default function ListPage({ params }: { params: Promise<{ id: string }> }
   const [editValue, setEditValue] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const error = listError ?? itemsError;
 
   // Redirect if list doesn't exist
   useEffect(() => {
@@ -48,6 +50,11 @@ export default function ListPage({ params }: { params: Promise<{ id: string }> }
     if (!confirmReset) { setConfirmReset(true); return; }
     setConfirmReset(false);
     resetList();
+  }
+
+  function dismissError() {
+    clearListError();
+    clearItemsError();
   }
 
   const activeCount = items.filter((i) => !i.bought).length;
@@ -79,7 +86,7 @@ export default function ListPage({ params }: { params: Promise<{ id: string }> }
                   if (e.key === 'Enter') commitRename();
                   if (e.key === 'Escape') setEditingName(false);
                 }}
-                className="flex-1 rounded-md border border-zinc-300 bg-white px-2 py-1 text-lg font-semibold text-zinc-900 focus:border-zinc-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
+                className="flex-1 rounded-md border border-zinc-400 bg-white px-2 py-1 text-lg font-semibold text-zinc-900 focus:border-indigo-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
               />
             ) : (
               <button
@@ -116,6 +123,8 @@ export default function ListPage({ params }: { params: Promise<{ id: string }> }
       </header>
 
       <div className="flex flex-1 flex-col">
+        {error && <ErrorBanner message={error} onDismiss={dismissError} />}
+
         {loading ? (
           <div className="flex flex-1 items-center justify-center">
             <span className="text-sm text-zinc-400">Loading…</span>

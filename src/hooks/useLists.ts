@@ -6,27 +6,26 @@ import type { ShoppingList } from '@/types/shopping';
 export function useLists() {
   const [lists, setLists] = useState<ShoppingList[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchLists = useCallback(async () => {
     try {
       const res = await fetch('/api/lists');
-      if (!res.ok) return;
+      if (!res.ok) {
+        setError('Could not load lists.');
+        return;
+      }
       const { lists } = await res.json() as { lists: ShoppingList[] };
       setLists(lists);
+      setError(null);
     } catch {
-      // Network offline — keep last known state
+      setError('Could not load lists.');
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => { fetchLists(); }, [fetchLists]);
-
-  // Poll every 5s — picks up lists created/deleted on another device
-  useEffect(() => {
-    const interval = setInterval(fetchLists, 5000);
-    return () => clearInterval(interval);
-  }, [fetchLists]);
 
   async function createList(name: string): Promise<ShoppingList | null> {
     try {
@@ -35,24 +34,36 @@ export function useLists() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
       });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        setError('Could not create the list.');
+        return null;
+      }
       const { list } = await res.json() as { list: ShoppingList };
       setLists((prev) => [list, ...prev]);
+      setError(null);
       return list;
     } catch {
+      setError('Could not create the list.');
       return null;
     }
   }
 
   async function deleteList(id: string) {
+    const previousLists = lists;
     setLists((prev) => prev.filter((l) => l.id !== id));
     try {
-      await fetch(`/api/lists/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/lists/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        setLists(previousLists);
+        setError('Could not delete the list.');
+        return;
+      }
+      setError(null);
     } catch {
-      // On failure re-sync
-      fetchLists();
+      setLists(previousLists);
+      setError('Could not delete the list.');
     }
   }
 
-  return { lists, loading, createList, deleteList, refetch: fetchLists };
+  return { lists, loading, error, clearError: () => setError(null), createList, deleteList, refetch: fetchLists };
 }

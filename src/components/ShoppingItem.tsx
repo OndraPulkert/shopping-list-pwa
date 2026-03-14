@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { parseItemInput } from '@/lib/parseItemInput';
+import { buildItemInput, isNumericQuantity, stepQuantity } from '@/lib/quantity';
 import type { ShoppingItem as ShoppingItemType } from '@/types/shopping';
 
 interface ShoppingItemProps {
@@ -22,7 +23,7 @@ export function ShoppingItem({ item, onToggle, onDelete, onEdit, sortable = fals
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id, disabled: !sortable });
 
-  const displayValue = item.quantity ? `${item.name} x${item.quantity}` : item.name;
+  const displayValue = buildItemInput(item.name, item.quantity);
 
   function startEdit() {
     setEditValue(displayValue);
@@ -47,6 +48,13 @@ export function ShoppingItem({ item, onToggle, onDelete, onEdit, sortable = fals
     if (e.key === 'Escape') setIsEditing(false);
   }
 
+  function adjustEditQuantity(delta: number) {
+    const parsed = parseItemInput(editValue.trim() || displayValue);
+    const currentQuantity = isNumericQuantity(parsed.quantity) ? parsed.quantity : '1';
+    const nextQuantity = stepQuantity(currentQuantity, delta);
+    setEditValue(buildItemInput(parsed.name || item.name, nextQuantity));
+  }
+
   const dragStyle = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -55,7 +63,7 @@ export function ShoppingItem({ item, onToggle, onDelete, onEdit, sortable = fals
 
   if (isEditing) {
     return (
-      <div className="flex min-h-12 w-full items-center gap-2 px-4 py-2">
+      <div className="flex min-h-12 w-full flex-wrap items-center gap-2 px-4 py-2">
         <input
           ref={inputRef}
           type="text"
@@ -64,11 +72,43 @@ export function ShoppingItem({ item, onToggle, onDelete, onEdit, sortable = fals
           onKeyDown={handleKeyDown}
           onBlur={commitEdit}
           aria-label="Edit item"
-          className="flex-1 rounded-lg border border-zinc-400 bg-white px-3 py-2 text-base text-zinc-900 focus:border-indigo-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
+          className="min-w-0 flex-1 rounded-lg border border-zinc-400 bg-white px-3 py-2 text-base text-zinc-900 focus:border-indigo-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
         />
         <button
-          onMouseDown={(e) => { e.preventDefault(); commitEdit(); }}
-          className="rounded-md px-3 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950"
+          type="button"
+          onMouseDown={(e) => { e.preventDefault(); }}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            adjustEditQuantity(-1);
+          }}
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-zinc-200 text-lg text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          aria-label="Decrease quantity"
+        >
+          -
+        </button>
+        <button
+          type="button"
+          onMouseDown={(e) => { e.preventDefault(); }}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            adjustEditQuantity(1);
+          }}
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-zinc-200 text-lg text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          aria-label="Increase quantity"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          onMouseDown={(e) => { e.preventDefault(); }}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            commitEdit();
+          }}
+          className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400"
         >
           Save
         </button>
