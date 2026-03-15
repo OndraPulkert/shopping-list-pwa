@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { ShoppingItem } from '@/types/shopping';
 
 // Only split active vs bought — preserve existing order within each group.
@@ -20,10 +20,8 @@ export function useListItems(listId: string) {
   const [error, setError] = useState<string | null>(null);
 
   // Pause refetch while mutations are in-flight to prevent optimistic state being overwritten
-  const pendingMutations = useRef(0);
 
   const fetchItems = useCallback(async () => {
-    if (pendingMutations.current > 0) return;
     try {
       const res = await fetch(`/api/lists/${listId}/items`);
       if (res.status === 404) { setNotFound(true); setLoading(false); return; }
@@ -43,13 +41,6 @@ export function useListItems(listId: string) {
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
-  // Refetch when the user returns to the tab/app
-  useEffect(() => {
-    const onFocus = () => fetchItems();
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, [fetchItems]);
-
   // Auto-expire undo window after 5 seconds
   useEffect(() => {
     if (clearedItems.length === 0) return;
@@ -67,7 +58,6 @@ export function useListItems(listId: string) {
       bought: false, createdAt: Date.now(), boughtAt: null,
     };
     setItems((prev) => sortItems([...prev, optimistic]));
-    pendingMutations.current++;
     try {
       const res = await fetch(`/api/lists/${listId}/items`, {
         method: 'POST',
@@ -84,7 +74,6 @@ export function useListItems(listId: string) {
       setItems((prev) => prev.filter((item) => item.id !== optimisticId));
       setError('Could not add the item.');
     } finally {
-      pendingMutations.current--;
     }
   }
 
@@ -97,7 +86,6 @@ export function useListItems(listId: string) {
           : item
       ))
     );
-    pendingMutations.current++;
     try {
       const res = await fetch(`/api/lists/${listId}/items/${id}`, { method: 'PATCH' });
       if (!res.ok) {
@@ -110,14 +98,12 @@ export function useListItems(listId: string) {
       if (prev) setItems((cur) => sortItems(cur.map((item) => item.id === id ? prev : item)));
       setError('Could not update the item.');
     } finally {
-      pendingMutations.current--;
     }
   }
 
   async function deleteItem(id: string) {
     const prev = items.find((item) => item.id === id);
     setItems((cur) => cur.filter((item) => item.id !== id));
-    pendingMutations.current++;
     try {
       const res = await fetch(`/api/lists/${listId}/items/${id}`, { method: 'DELETE' });
       if (!res.ok) {
@@ -130,7 +116,6 @@ export function useListItems(listId: string) {
       if (prev) setItems((cur) => sortItems([...cur, prev]));
       setError('Could not delete the item.');
     } finally {
-      pendingMutations.current--;
     }
   }
 
@@ -139,14 +124,14 @@ export function useListItems(listId: string) {
     if (bought.length === 0) return;
     setItems((prev) => prev.filter((item) => !item.bought));
     setClearedItems(bought); // offer undo immediately, regardless of network outcome
-    pendingMutations.current++;
+    let needsRefetch = false;
     try {
       for (const item of bought) {
         const res = await fetch(`/api/lists/${listId}/items/${item.id}`, { method: 'DELETE' });
         if (!res.ok) {
           setClearedItems([]);
           setError('Could not clear bought items.');
-          await fetchItems();
+          needsRefetch = true;
           return;
         }
       }
@@ -154,10 +139,10 @@ export function useListItems(listId: string) {
     } catch {
       setClearedItems([]);
       setError('Could not clear bought items.');
-      await fetchItems();
+      needsRefetch = true;
     } finally {
-      pendingMutations.current--;
     }
+    if (needsRefetch) fetchItems();
   }
 
   async function undoClearBought() {
@@ -166,7 +151,7 @@ export function useListItems(listId: string) {
     const snapshot = clearedItems;
     setItems((prev) => sortItems([...prev, ...restored]));
     setClearedItems([]);
-    pendingMutations.current += restored.length;
+    let needsRefetch = false;
     try {
       const responses = await Promise.all(
         restored.map((item) =>
@@ -185,10 +170,10 @@ export function useListItems(listId: string) {
       // Re-sync after partial failure because some items may already exist on the server.
       setClearedItems(snapshot);
       setError('Could not restore cleared items.');
-      await fetchItems();
+      needsRefetch = true;
     } finally {
-      pendingMutations.current -= restored.length;
     }
+    if (needsRefetch) fetchItems();
   }
 
   async function editItem(id: string, name: string, quantity: string | null) {
@@ -196,7 +181,6 @@ export function useListItems(listId: string) {
     setItems((cur) => sortItems(cur.map((item) =>
       item.id === id ? { ...item, name, quantity } : item
     )));
-    pendingMutations.current++;
     try {
       const res = await fetch(`/api/lists/${listId}/items/${id}`, {
         method: 'PUT',
@@ -213,7 +197,6 @@ export function useListItems(listId: string) {
       if (prev) setItems((cur) => sortItems(cur.map((item) => item.id === id ? prev : item)));
       setError('Could not save item changes.');
     } finally {
-      pendingMutations.current--;
     }
   }
 
@@ -232,7 +215,6 @@ export function useListItems(listId: string) {
         .filter(Boolean) as ShoppingItem[];
       return [...reordered, ...bought];
     });
-    pendingMutations.current++;
     try {
       const res = await fetch(`/api/lists/${listId}/items/reorder`, {
         method: 'POST',
@@ -249,14 +231,12 @@ export function useListItems(listId: string) {
       setItems(snapshot);
       setError('Could not reorder items.');
     } finally {
-      pendingMutations.current--;
     }
   }
 
   async function resetList() {
     const previousItems = items;
     setItems((prev) => sortItems(prev.map((item) => ({ ...item, bought: false, boughtAt: null }))));
-    pendingMutations.current++;
     try {
       const res = await fetch(`/api/lists/${listId}/reset`, { method: 'POST' });
       if (!res.ok) {
@@ -269,7 +249,6 @@ export function useListItems(listId: string) {
       setItems(previousItems);
       setError('Could not reset the list.');
     } finally {
-      pendingMutations.current--;
     }
   }
 
