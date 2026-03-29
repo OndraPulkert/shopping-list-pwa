@@ -7,15 +7,19 @@ import { QUICK_QUANTITIES } from '@/lib/quantity';
 
 interface AddItemFormProps {
   onAdd: (name: string, quantity?: string | null) => void;
+  existingNames?: string[];
 }
 
-export function AddItemForm({ onAdd }: AddItemFormProps) {
+export function AddItemForm({ onAdd, existingNames = [] }: AddItemFormProps) {
   const [value, setValue] = useState('');
   const [selectedQuantity, setSelectedQuantity] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [frequentItems, setFrequentItems] = useState<string[]>([]);
   const suggestions = useItemSuggestions(value);
+  const existingLower = existingNames.map((n) => n.toLowerCase());
+  const frequentChips = frequentItems.filter((name) => !existingLower.includes(name.toLowerCase()));
   const visibleSuggestions = showSuggestions && value.trim() && suggestions.length > 0 ? suggestions : [];
   const activeSuggestionId =
     activeSuggestion >= 0 && visibleSuggestions[activeSuggestion]
@@ -27,6 +31,16 @@ export function AddItemForm({ onAdd }: AddItemFormProps) {
     if (!window.matchMedia('(hover: none)').matches) {
       inputRef.current?.focus();
     }
+  }, []);
+
+  // Fetch most frequently used items on mount
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/suggestions', { signal: controller.signal })
+      .then((res) => res.ok ? res.json() : { suggestions: [] })
+      .then(({ suggestions }) => setFrequentItems(suggestions))
+      .catch(() => {});
+    return () => controller.abort();
   }, []);
 
   function submit(rawName?: string) {
@@ -126,6 +140,21 @@ export function AddItemForm({ onAdd }: AddItemFormProps) {
           Add
         </button>
       </div>
+
+      {frequentChips.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {frequentChips.map((name) => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => submit(name)}
+              className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700 transition-colors hover:border-indigo-300 hover:text-indigo-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-indigo-500 dark:hover:text-indigo-300"
+            >
+              + {name}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="mt-3 flex flex-wrap gap-2">
         {QUICK_QUANTITIES.map((quantity) => {

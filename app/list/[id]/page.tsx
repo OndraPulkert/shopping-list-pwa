@@ -131,7 +131,7 @@ export default function ListPage({ params }: { params: Promise<{ id: string }> }
           </div>
         ) : (
           <>
-            <AddItemForm onAdd={addItem} />
+            <AddItemForm onAdd={addItem} existingNames={items.map((i) => i.name)} />
             <ShoppingList
               items={items}
               onToggle={toggleItem}
