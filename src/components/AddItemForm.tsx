@@ -46,8 +46,12 @@ export function AddItemForm({ onAdd, existingNames = [] }: AddItemFormProps) {
   function submit(rawName?: string) {
     const raw = (rawName ?? value).trim();
     if (!raw) return;
-    const { name, quantity } = parseItemInput(raw);
-    onAdd(name, quantity ?? selectedQuantity);
+    // Support comma-separated items: "mléko, chleba x2, máslo"
+    const parts = raw.split(',').map((s) => s.trim()).filter(Boolean);
+    for (const part of parts) {
+      const { name, quantity } = parseItemInput(part);
+      onAdd(name, quantity ?? selectedQuantity);
+    }
     setValue('');
     setSelectedQuantity(null);
     setShowSuggestions(false);
