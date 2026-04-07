@@ -256,6 +256,6 @@ export function useListItems(listId: string) {
     items, loading, notFound, error, clearError: () => setError(null),
     addItem, toggleItem, deleteItem, editItem, reorderItems,
     clearBought, undoClearBought, canUndo: clearedItems.length > 0,
-    resetList,
+    resetList, refetch: fetchItems,
   };
 }

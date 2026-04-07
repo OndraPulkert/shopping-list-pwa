@@ -17,7 +17,7 @@ export default function ListPage({ params }: { params: Promise<{ id: string }> }
     items, loading, notFound: itemsNotFound, error: itemsError, clearError: clearItemsError,
     addItem, toggleItem, deleteItem, editItem, reorderItems,
     clearBought, undoClearBought, canUndo,
-    resetList,
+    resetList, refetch,
   } = useListItems(id);
 
   const [editingName, setEditingName] = useState(false);
@@ -145,6 +145,17 @@ export default function ListPage({ params }: { params: Promise<{ id: string }> }
           </>
         )}
       </div>
+
+      {/* Refresh button — syncs data without full page reload */}
+      <button
+        onClick={refetch}
+        aria-label="Refresh list"
+        className="fixed bottom-6 right-6 flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-zinc-200 transition-colors hover:bg-zinc-50 active:bg-zinc-100 dark:bg-zinc-800 dark:ring-zinc-700 dark:hover:bg-zinc-700"
+      >
+        <svg className="h-5 w-5 text-zinc-500 dark:text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 12a8 8 0 0 1 14.93-4H15m5-4v4h-4M20 12a8 8 0 0 1-14.93 4H9m-5 4v-4h4" />
+        </svg>
+      </button>
     </div>
   );
 }

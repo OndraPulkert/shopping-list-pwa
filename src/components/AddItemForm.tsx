@@ -5,6 +5,38 @@ import { useItemSuggestions } from '@/hooks/useItemSuggestions';
 import { parseItemInput } from '@/lib/parseItemInput';
 import { QUICK_QUANTITIES } from '@/lib/quantity';
 
+// Web Speech API types — not in all TS libs
+interface SpeechRecognitionEvent {
+  results: { [index: number]: { [index: number]: { transcript: string } } };
+}
+interface SpeechRecognitionErrorEvent {
+  error: string;
+}
+interface SpeechRecognitionInstance {
+  lang: string;
+  interimResults: boolean;
+  onresult: ((e: SpeechRecognitionEvent) => void) | null;
+  onerror: ((e: SpeechRecognitionErrorEvent) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+}
+
+function getSpeechCtor(): (new () => SpeechRecognitionInstance) | null {
+  if (typeof window === 'undefined') return null;
+  const w = window as unknown as Record<string, unknown>;
+  return (w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null) as (new () => SpeechRecognitionInstance) | null;
+}
+
+function createRecognition(): SpeechRecognitionInstance | null {
+  const Ctor = getSpeechCtor();
+  if (!Ctor) return null;
+  const r = new Ctor();
+  r.lang = navigator.language || 'cs-CZ';
+  r.interimResults = false;
+  return r;
+}
+
 interface AddItemFormProps {
   onAdd: (name: string, quantity?: string | null) => void;
   existingNames?: string[];
@@ -15,7 +47,9 @@ export function AddItemForm({ onAdd, existingNames = [] }: AddItemFormProps) {
   const [selectedQuantity, setSelectedQuantity] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
+  const [isListening, setIsListening] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const [frequentItems, setFrequentItems] = useState<string[]>([]);
   const suggestions = useItemSuggestions(value);
   const existingLower = existingNames.map((n) => n.toLowerCase());
@@ -42,6 +76,44 @@ export function AddItemForm({ onAdd, existingNames = [] }: AddItemFormProps) {
       .catch(() => {});
     return () => controller.abort();
   }, []);
+
+  const speechSupported = !!getSpeechCtor();
+
+  // Stop recognition on unmount (prevents mic staying active after navigation)
+  useEffect(() => {
+    return () => { recognitionRef.current?.stop(); };
+  }, []);
+
+  function toggleListening() {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const recognition = createRecognition();
+    if (!recognition) return;
+    recognition.onresult = (e) => {
+      const transcript = e.results[0][0].transcript;
+      // Speech returns "mléko pivo chleba" — split each word as a separate item
+      const items = transcript.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+      for (const item of items) {
+        const { name, quantity } = parseItemInput(item);
+        onAdd(name, quantity ?? selectedQuantity);
+      }
+      setSelectedQuantity(null);
+    };
+    recognition.onerror = (e) => {
+      setIsListening(false);
+      if (e.error === 'not-allowed') alert('Microphone access denied. Check browser permissions.');
+    };
+    recognition.onend = () => setIsListening(false);
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+      setIsListening(true);
+    } catch {
+      // Already running or not allowed
+    }
+  }
 
   function submit(rawName?: string) {
     const raw = (rawName ?? value).trim();
@@ -107,8 +179,20 @@ export function AddItemForm({ onAdd, existingNames = [] }: AddItemFormProps) {
             aria-expanded={visibleSuggestions.length > 0}
             aria-activedescendant={activeSuggestionId}
             placeholder="Add item… (e.g. milk x3)"
-            className="w-full rounded-lg border border-zinc-400 bg-white px-4 py-3 text-base text-zinc-900 placeholder-zinc-400 focus:border-indigo-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
+            className="w-full rounded-lg border border-zinc-400 bg-white py-3 pl-4 pr-9 text-base text-zinc-900 placeholder-zinc-400 focus:border-indigo-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
           />
+          {value && (
+            <button
+              type="button"
+              onClick={() => { setValue(''); inputRef.current?.focus(); }}
+              aria-label="Clear input"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
 
           {visibleSuggestions.length > 0 && (
             <ul
@@ -135,6 +219,23 @@ export function AddItemForm({ onAdd, existingNames = [] }: AddItemFormProps) {
             </ul>
           )}
         </div>
+
+        {speechSupported && (
+          <button
+            type="button"
+            onClick={toggleListening}
+            aria-label={isListening ? 'Stop listening' : 'Voice input'}
+            className={`flex-shrink-0 rounded-lg px-3 py-3 transition-colors ${
+              isListening
+                ? 'animate-pulse bg-red-500 text-white'
+                : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-200'
+            }`}
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+            </svg>
+          </button>
+        )}
 
         <button
           onClick={() => submit()}
