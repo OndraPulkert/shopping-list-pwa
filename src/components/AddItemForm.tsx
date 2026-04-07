@@ -32,7 +32,6 @@ function createRecognition(): SpeechRecognitionInstance | null {
   const Ctor = getSpeechCtor();
   if (!Ctor) return null;
   const r = new Ctor();
-  r.lang = 'cs-CZ';
   r.interimResults = false;
   return r;
 }
