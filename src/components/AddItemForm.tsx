@@ -32,7 +32,7 @@ function createRecognition(): SpeechRecognitionInstance | null {
   const Ctor = getSpeechCtor();
   if (!Ctor) return null;
   const r = new Ctor();
-  r.lang = navigator.language || 'cs-CZ';
+  r.lang = 'cs-CZ';
   r.interimResults = false;
   return r;
 }
@@ -92,23 +92,25 @@ export function AddItemForm({ onAdd, existingNames = [] }: AddItemFormProps) {
     const recognition = createRecognition();
     if (!recognition) return;
     recognition.onresult = (e) => {
+      if (!e.results[0]?.[0]) return;
       const transcript = e.results[0][0].transcript;
       // Speech returns "mléko pivo chleba" — split each word as a separate item
       const items = transcript.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
       for (const item of items) {
         const { name, quantity } = parseItemInput(item);
-        onAdd(name, quantity ?? selectedQuantity);
+        if (name) onAdd(name, quantity ?? selectedQuantity);
       }
       setSelectedQuantity(null);
+      recognition.stop(); // explicitly stop mic — iOS Safari doesn't always auto-stop
     };
     recognition.onerror = (e) => {
       setIsListening(false);
       if (e.error === 'not-allowed') alert('Microphone access denied. Check browser permissions.');
     };
     recognition.onend = () => setIsListening(false);
-    recognitionRef.current = recognition;
     try {
       recognition.start();
+      recognitionRef.current = recognition;
       setIsListening(true);
     } catch {
       // Already running or not allowed
@@ -184,7 +186,7 @@ export function AddItemForm({ onAdd, existingNames = [] }: AddItemFormProps) {
           {value && (
             <button
               type="button"
-              onClick={() => { setValue(''); inputRef.current?.focus(); }}
+              onClick={() => { setValue(''); setActiveSuggestion(-1); inputRef.current?.focus(); }}
               aria-label="Clear input"
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
             >
