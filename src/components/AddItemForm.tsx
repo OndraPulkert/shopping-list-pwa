@@ -92,16 +92,19 @@ export function AddItemForm({ onAdd, existingNames = [] }: AddItemFormProps) {
     const recognition = createRecognition();
     if (!recognition) return;
     recognition.onresult = (e) => {
-      if (!e.results[0]?.[0]) return;
-      const transcript = e.results[0][0].transcript;
-      // Speech returns "mléko pivo chleba" — split each word as a separate item
-      const items = transcript.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
-      for (const item of items) {
-        const { name, quantity } = parseItemInput(item);
-        if (name) onAdd(name, quantity ?? selectedQuantity);
+      try {
+        const transcript = e.results[0][0].transcript;
+        if (!transcript) return;
+        // Speech returns "mléko pivo chleba" — split each word as a separate item
+        const items = transcript.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+        for (const item of items) {
+          const { name, quantity } = parseItemInput(item);
+          if (name) onAdd(name, quantity ?? selectedQuantity);
+        }
+        setSelectedQuantity(null);
+      } finally {
+        recognition.stop();
       }
-      setSelectedQuantity(null);
-      recognition.stop(); // explicitly stop mic — iOS Safari doesn't always auto-stop
     };
     recognition.onerror = (e) => {
       setIsListening(false);
