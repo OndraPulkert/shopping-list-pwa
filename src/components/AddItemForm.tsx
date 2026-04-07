@@ -5,37 +5,6 @@ import { useItemSuggestions } from '@/hooks/useItemSuggestions';
 import { parseItemInput } from '@/lib/parseItemInput';
 import { QUICK_QUANTITIES } from '@/lib/quantity';
 
-// Web Speech API types — not in all TS libs
-interface SpeechRecognitionEvent {
-  results: { [index: number]: { [index: number]: { transcript: string } } };
-}
-interface SpeechRecognitionErrorEvent {
-  error: string;
-}
-interface SpeechRecognitionInstance {
-  lang: string;
-  interimResults: boolean;
-  onresult: ((e: SpeechRecognitionEvent) => void) | null;
-  onerror: ((e: SpeechRecognitionErrorEvent) => void) | null;
-  onend: (() => void) | null;
-  start(): void;
-  stop(): void;
-}
-
-function getSpeechCtor(): (new () => SpeechRecognitionInstance) | null {
-  if (typeof window === 'undefined') return null;
-  const w = window as unknown as Record<string, unknown>;
-  return (w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null) as (new () => SpeechRecognitionInstance) | null;
-}
-
-function createRecognition(): SpeechRecognitionInstance | null {
-  const Ctor = getSpeechCtor();
-  if (!Ctor) return null;
-  const r = new Ctor();
-  r.interimResults = false;
-  return r;
-}
-
 interface AddItemFormProps {
   onAdd: (name: string, quantity?: string | null) => void;
   existingNames?: string[];
@@ -46,9 +15,7 @@ export function AddItemForm({ onAdd, existingNames = [] }: AddItemFormProps) {
   const [selectedQuantity, setSelectedQuantity] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
-  const [isListening, setIsListening] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const [frequentItems, setFrequentItems] = useState<string[]>([]);
   const suggestions = useItemSuggestions(value);
   const existingLower = existingNames.map((n) => n.toLowerCase());
@@ -75,45 +42,6 @@ export function AddItemForm({ onAdd, existingNames = [] }: AddItemFormProps) {
       .catch(() => {});
     return () => controller.abort();
   }, []);
-
-  const speechSupported = !!getSpeechCtor();
-
-  // Stop recognition on unmount (prevents mic staying active after navigation)
-  useEffect(() => {
-    return () => { recognitionRef.current?.stop(); };
-  }, []);
-
-  function toggleListening() {
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-      return;
-    }
-    const recognition = createRecognition();
-    if (!recognition) return;
-    recognition.onresult = (e) => {
-      try {
-        const transcript = e.results[0][0].transcript;
-        if (!transcript) return;
-        const items = transcript.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
-        for (const item of items) {
-          const { name, quantity } = parseItemInput(item);
-          if (name) onAdd(name, quantity ?? selectedQuantity);
-        }
-        setSelectedQuantity(null);
-      } catch { /* ignore */ }
-      recognition.stop();
-    };
-    recognition.onerror = () => setIsListening(false);
-    recognition.onend = () => setIsListening(false);
-    try {
-      recognition.start();
-      recognitionRef.current = recognition;
-      setIsListening(true);
-    } catch {
-      // mic not available
-    }
-  }
 
   function submit(rawName?: string) {
     const raw = (rawName ?? value).trim();
@@ -219,23 +147,6 @@ export function AddItemForm({ onAdd, existingNames = [] }: AddItemFormProps) {
             </ul>
           )}
         </div>
-
-        {speechSupported && (
-          <button
-            type="button"
-            onClick={toggleListening}
-            aria-label={isListening ? 'Stop listening' : 'Voice input'}
-            className={`flex-shrink-0 rounded-lg px-3 py-3 transition-colors ${
-              isListening
-                ? 'animate-pulse bg-red-500 text-white'
-                : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-200'
-            }`}
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
-            </svg>
-          </button>
-        )}
 
         <button
           onClick={() => submit()}
