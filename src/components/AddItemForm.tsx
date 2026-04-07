@@ -28,11 +28,10 @@ function getSpeechCtor(): (new () => SpeechRecognitionInstance) | null {
   return (w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null) as (new () => SpeechRecognitionInstance) | null;
 }
 
-function createRecognition(lang?: string): SpeechRecognitionInstance | null {
+function createRecognition(): SpeechRecognitionInstance | null {
   const Ctor = getSpeechCtor();
   if (!Ctor) return null;
   const r = new Ctor();
-  if (lang) r.lang = lang;
   r.interimResults = false;
   return r;
 }
@@ -84,58 +83,36 @@ export function AddItemForm({ onAdd, existingNames = [] }: AddItemFormProps) {
     return () => { recognitionRef.current?.stop(); };
   }, []);
 
-  function handleResult(e: SpeechRecognitionEvent) {
-    try {
-      const transcript = e.results[0][0].transcript;
-      if (!transcript) return;
-      // Speech returns "mléko pivo chleba" — split each word as a separate item
-      const items = transcript.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
-      for (const item of items) {
-        const { name, quantity } = parseItemInput(item);
-        if (name) onAdd(name, quantity ?? selectedQuantity);
-      }
-      setSelectedQuantity(null);
-    } catch {
-      // results structure unexpected
-    }
-  }
-
-  function startRecognition(lang?: string) {
-    const recognition = createRecognition(lang);
-    if (!recognition) { setIsListening(false); return; }
-    let gotResult = false;
-    recognition.onresult = (e) => {
-      gotResult = true;
-      handleResult(e);
-      recognition.stop();
-    };
-    recognition.onerror = (e) => {
-      setIsListening(false);
-      if (e.error === 'not-allowed') alert('Microphone access denied. Check browser permissions.');
-    };
-    recognition.onend = () => {
-      if (!gotResult && lang) {
-        // cs-CZ not supported (e.g. iOS without Czech dictation) — retry without lang
-        startRecognition();
-        return;
-      }
-      setIsListening(false);
-    };
-    try {
-      recognition.start();
-      recognitionRef.current = recognition;
-    } catch {
-      setIsListening(false);
-    }
-  }
-
   function toggleListening() {
     if (isListening) {
       recognitionRef.current?.stop();
+      setIsListening(false);
       return;
     }
-    setIsListening(true);
-    startRecognition('cs-CZ');
+    const recognition = createRecognition();
+    if (!recognition) return;
+    recognition.onresult = (e) => {
+      try {
+        const transcript = e.results[0][0].transcript;
+        if (!transcript) return;
+        const items = transcript.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+        for (const item of items) {
+          const { name, quantity } = parseItemInput(item);
+          if (name) onAdd(name, quantity ?? selectedQuantity);
+        }
+        setSelectedQuantity(null);
+      } catch { /* ignore */ }
+      recognition.stop();
+    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+    try {
+      recognition.start();
+      recognitionRef.current = recognition;
+      setIsListening(true);
+    } catch {
+      // mic not available
+    }
   }
 
   function submit(rawName?: string) {
